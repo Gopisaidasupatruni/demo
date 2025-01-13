@@ -7,22 +7,25 @@
 #include <errno.h>
 #include <pthread.h>
 
-#define SOCKET_PATH "/tmp/chat_socket"
-#define MAX_MSG_LEN 128
+#define SOCKET_PATH "/tmp/chat_socket" // Path for the Unix Domain Socket
+#define MAX_MSG_LEN 128               // Maximum message length
 
-int client_fd;
-char confirm[MAX_MSG_LEN];
+int client_fd;                         // File descriptor for the client socket
+char confirm[MAX_MSG_LEN];             // Buffer to store messages from the server
 
-/*print_message: Thread function to listen for server messages */
+/**
+ * print_message: Thread function to listen for server messages.
+ * Continuously reads and prints messages from the server.
+ */
 void *print_message(void *thread_id) {
     while (1) {
         memset(confirm, 0, MAX_MSG_LEN);
 
-        // Read message from server
+        // Read message from the server
         ssize_t bytes_read = read(client_fd, confirm, MAX_MSG_LEN);
 
         if (bytes_read <= 0) {
-            // Server closed connection or error occurred
+            // Server closed the connection or an error occurred
             if (bytes_read == 0) {
                 printf("Server has closed the connection. Exiting...\n");
             } else {
@@ -31,20 +34,27 @@ void *print_message(void *thread_id) {
             exit(EXIT_FAILURE);
         }
 
+        // Check for server termination signal
         if (strcmp(confirm, "1") == 0) {
             printf("Server terminated. Exiting...\n");
             exit(EXIT_FAILURE);
         }
 
+        // Print the message from the server
         printf("Server: %s\n", confirm);
     }
 
     return NULL;
 }
 
+/**
+ * main: Entry point of the client program.
+ * Establishes connection with the server, starts a thread for receiving messages,
+ * and allows the user to send messages to the server.
+ */
 int main() {
-    struct sockaddr_un server_addr;
-    pthread_t thread;
+    struct sockaddr_un server_addr; // Server address structure
+    pthread_t thread;               // Thread for receiving messages
 
     /* Create Unix Domain Socket */
     client_fd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -94,9 +104,9 @@ int main() {
     }
 
     /* Cleanup */
-    close(client_fd);
-    pthread_cancel(thread); /* Terminate the thread */
-    pthread_join(thread, NULL); /* Wait for the thread to finish */
+    close(client_fd);               // Close the client socket
+    pthread_cancel(thread);         // Terminate the thread
+    pthread_join(thread, NULL);     // Wait for the thread to finish
     return 0;
 }
 

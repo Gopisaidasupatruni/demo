@@ -33,7 +33,7 @@ void handle_sigint(int sig)
 	write(client_fd, confirmation, strlen(confirmation));
 	exit(0);
 }
-
+int icount=0;
 int main() {
 
 	struct sockaddr_un server_addr, client_addr;
@@ -114,8 +114,8 @@ int main() {
 			perror("accept");
 			continue;
 		}
-
-		printf("Client connected.\n");
+                icount++;
+		printf("Client %d connected \n.",icount);
 
 		/* Fork to handle client */
 		if (fork() == 0) {
@@ -148,6 +148,7 @@ int main() {
 				semop(sem_id, &sem_unlock, 1);
 
 				printf("Message received: %s", msg.text);
+			//	printf("Enter new message:\n"); 
 				fgets(confirmation, MAX_MSG_LEN, stdin);
 				//	snprintf(confirmation, MAX_MSG_LEN, "Message received: %.100s", msg.text);
 				write(client_fd, confirmation, strlen(confirmation));

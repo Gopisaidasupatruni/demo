@@ -9,7 +9,29 @@
 
 #define SOCKET_PATH "/tmp/chat_socket"
 #define MAX_MSG_LEN 128
+#define MAX_MESSAGES 100
+#define MAX_SENDER_ID_LEN 32
 
+typedef struct {
+    char sender_id[MAX_SENDER_ID_LEN];
+    char message[MAX_MSG_LEN];
+} ChatMessage;
+
+typedef struct {
+    ChatMessage messages[MAX_MESSAGES];
+    int message_count;  // Keeps track of the number of messages
+} ChatHistory;
+
+ChatHistory *shared_chat;
+int shm_id;
+
+// Display chat history from shared memory
+void display_chat_history(const ChatHistory *chat) {
+    printf("\nChat History:\n");
+    for (int i = 0; i < chat->message_count; i++) {
+        printf("[%s]: %s\n", chat->messages[i].sender_id, chat->messages[i].message);
+    }
+}
 int client_fd;
 char confirm[MAX_MSG_LEN];
 
@@ -37,6 +59,7 @@ void *print_message(void *thread_id) {
         }
 
         printf("Server: %s\n", confirm);
+	display_chat_history(shared_chat);
     }
 
     return NULL;

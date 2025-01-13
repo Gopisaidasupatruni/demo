@@ -11,13 +11,12 @@
 #include <unistd.h>         /* For POSIX API (e.g., close, fork) */
 #include <sys/msg.h>        /* For message queue operations */
 #include<signal.h>
-
+#include<pthread.h>
 /* Define the message structure */
 struct message {
 	long mtype;
 	char text[100];
-};
-
+}msg;
 /* MACRO DEFINITIONS */
 #define SHM_SIZE 1024    /* Shared memory size */
 #define MSG_KEY 1234
@@ -27,26 +26,42 @@ struct message {
 /* Semaphore operations */
 struct sembuf sem_lock = {0, -1, 0};
 struct sembuf sem_unlock = {0, 1, 0};
-
 char confirmation[MAX_MSG_LEN];
+char buffer[MAX_MSG_LEN];
 int server_fd, client_fd, shm_id, sem_id;
-int icount=0;
+int msg_id;
 
-/* handle_sigint: To indicate all clients that serever has terminated */
+
+/* Access the message queue */
 void handle_sigint(int sig)
 {
 	strcpy(confirmation,"1");
 	write(client_fd, confirmation, strlen(confirmation));
 	exit(0);
 }
-/* MAIN PROGRAM */
-/* main : To store input from client into message queue before attaching into shared memory and sending new mesages to client */ 
+int icount=0;
+void *print_message(void *thread_id) {                              while (1) {				
+	memset(buffer, 0, MAX_MSG_LEN);
+	ssize_t bytes_read = read(client_fd, buffer, MAX_MSG_LEN);
+	if (bytes_read < 0) {
+		close(client_fd);
+		printf("Client disconnected.\n");
+		exit(0);
+	}
+	strcpy(msg.text,buffer);	
+	if (msgsnd(msg_id, &msg, sizeof(msg.text),0) < 0) {
+		perror("msgsnd");
+		exit(1);
+	}
+}
+}
 int main() {
-
 	struct sockaddr_un server_addr, client_addr;
 	char *shared_mem;
+	pthread_t thread;
 
 	socklen_t client_len;
+
 	if(signal(SIGINT, handle_sigint)==SIG_ERR){
 		perror("unable to catch SIGINT");
 		return 1;
@@ -77,10 +92,6 @@ int main() {
 	}
 
 	//printf("Server listening on %s\n", SOCKET_PATH);
-	int msg_id;
-	struct message msg;
-
-	/* Access the message queue */
 	msg_id = msgget(MSG_KEY,IPC_CREAT | 0666);
 	if (msg_id < 0) {
 		perror("msgget");
@@ -128,24 +139,13 @@ int main() {
 		if (fork() == 0) {
 			close(server_fd);
 
-			char buffer[MAX_MSG_LEN];
 			while (1) {
-				memset(buffer, 0, MAX_MSG_LEN);
-				ssize_t bytes_read = read(client_fd, buffer, MAX_MSG_LEN);
-				if (bytes_read <= 0) {
-					printf("Client disconnected.\n");
-					close(client_fd);
-					exit(0);
-				}
-				memset(msg.text, 0, sizeof(msg.text));  // Clear the message text
-				strncpy(msg.text, buffer, sizeof(msg.text) - 1);
-				if (msgsnd(msg_id, &msg, sizeof(msg.text),0) < 0) {
-					perror("msgsnd");
-					exit(1);
+				if (pthread_create(&thread, NULL, print_message, NULL) != 0) {
+					perror("pthread_create");
+					exit(EXIT_FAILURE);
 				}
 				/* Synchronize access to shared memory using semaphore */
 				semop(sem_id, &sem_lock, 1);
-				memset(msg.text, 0, sizeof(msg.text));
 				if (msgrcv(msg_id, &msg, sizeof(msg.text), 0, 0) < 0) {
 					perror("msgrcv");
 					exit(1);
@@ -168,10 +168,6 @@ int main() {
 	}
 
 	/* Cleanup (on server termination) */
-	if (msgctl(msg_id, IPC_RMID, NULL) < 0) {
-		perror("msgctl");
-		exit(1);
-	}
 	shmctl(shm_id, IPC_RMID, NULL);
 	semctl(sem_id, 0, IPC_RMID);
 	unlink(SOCKET_PATH);
