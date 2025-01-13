@@ -1,0 +1,10 @@
+[A]	pipe(pipefd)	Creates a pipe with pipefd[0] (read end) and pipefd[1] (write end).
+[B]	dup2(pipefd[1], STDOUT_FILENO)	Redirects STDOUT to the pipe's write end for cmd1.
+close(pipefd[0])	Closes the unused read end of the pipe in child1.
+close(pipefd[1])	Closes the duplicated write end after redirection.
+[C]	close(pipefd[1])	Closes the unused write end of the pipe in the parent after child1 fork.
+[D]	dup2(pipefd[0], STDIN_FILENO)	Redirects STDIN to the pipe's read end for cmd2.
+close(pipefd[0])	Closes the duplicated read end after redirection.
+[E]	close(pipefd[0])	Closes the unused read end of the pipe in the parent after child2 fork.
+waitpid(child1, &status, 0)	Waits for child1 to complete execution.
+waitpid(child2, &status, 0)	Waits for child2 to complete execution.
